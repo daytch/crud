@@ -2,69 +2,79 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Controller;
+use App\Repositories\StudentRepositoryInterface;
 use Illuminate\Http\Request;
-use App\Models\Student;
 
 class StudentController extends Controller
 {
-    /**
-     * Fetch students with pagination and search.
-     */
+    protected $studentRepository;
+
+    public function __construct(StudentRepositoryInterface $studentRepository)
+    {
+        $this->studentRepository = $studentRepository;
+    }
+
+    // Fetch all students
     public function index(Request $request)
     {
-        $searchQuery = $request->get('search', '');  // Get search query from the request
-        $studentsPerPage = $request->get('per_page', 5); // Number of students per page
-
-        // Filter students based on the search query and paginate
-        $students = Student::where('name', 'like', "%{$searchQuery}%")
-            ->orWhere('email', 'like', "%{$searchQuery}%")
-            ->orWhere('phone', 'like', "%{$searchQuery}%")
-            ->paginate($studentsPerPage);  // Paginate results
-
+        // Pass the request object to the repository method
+        $students = $this->studentRepository->all($request);
         return response()->json($students);
     }
 
-    /**
-     * Create a new student.
-     */
-    public function store(Request $request)
+    // Show a single student by ID
+    public function show($id)
     {
-        $data = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:students,email',
-            'phone' => 'required|string|max:255',
-        ]);
+        $student = $this->studentRepository->find($id);
 
-        $student = Student::create($data);
-
-        return response()->json($student, 201);
-    }
-
-    /**
-     * Update a student.
-     */
-    public function update(Request $request, $id)
-    {
-        $student = Student::findOrFail($id);
-
-        $data = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:students,email,' . $id,
-            'phone' => 'required|string|max:255',
-        ]);
-
-        $student->update($data);
+        if (!$student) {
+            return response()->json(['message' => 'Student not found'], 404);
+        }
 
         return response()->json($student);
     }
 
-    /**
-     * Delete a student.
-     */
+    // Create a new student
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:students',
+            'age' => 'required|integer',
+        ]);
+
+        $student = $this->studentRepository->create($validated);
+
+        return response()->json($student, 201);
+    }
+
+    // Update a student
+    public function update(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:students,email,' . $id,
+            'age' => 'required|integer',
+        ]);
+
+        $updated = $this->studentRepository->update($id, $validated);
+
+        if (!$updated) {
+            return response()->json(['message' => 'Student not found'], 404);
+        }
+
+        return response()->json(['message' => 'Student updated successfully']);
+    }
+
+    // Delete a student
     public function destroy($id)
     {
-        $student = Student::findOrFail($id);
-        $student->delete();
+        $deleted = $this->studentRepository->delete($id);
+
+        if (!$deleted) {
+            return response()->json(['message' => 'Student not found'], 404);
+        }
 
         return response()->json(['message' => 'Student deleted successfully']);
     }
